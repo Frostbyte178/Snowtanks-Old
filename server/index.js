@@ -346,6 +346,7 @@ let spawnBosses = (census) => {
         }
         setTimeout(() => {
             const names = ran.chooseBossName(selection.nameType, amount);
+            if (typeof names === "string") names = [names];
             sockets.broadcast(amount > 1 ? util.listify(names) + " have arrived!" : names[0] + " has arrived!");
             names.forEach((name, i) => {
                 let spot,

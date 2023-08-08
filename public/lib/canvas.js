@@ -130,6 +130,12 @@ class Canvas {
                     case global.KEY_CHOOSE_6:
                         this.parent.socket.talk('U', 5);
                         break;
+                    case global.KEY_CHOOSE_7:
+                        this.parent.socket.talk('U', 6);
+                        break;
+                    case global.KEY_CHOOSE_8:
+                        this.parent.socket.talk('U', 7);
+                        break;
                 }
             }
         }

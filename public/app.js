@@ -1095,11 +1095,15 @@ var getClassUpgradeKey = function (number) {
         case 2:
             return "i";
         case 3:
-            return "h";
+            return "o";
         case 4:
-            return "j";
+            return "h";
         case 5:
+            return "j";
+        case 6:
             return "k";
+        case 7:
+            return "l";
         default:
             return null;
     }
