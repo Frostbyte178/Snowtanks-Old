@@ -16924,7 +16924,7 @@ exports.atmosphere = {
     CONTROLLERS: ["teleportToMaster"],
     DAMAGE_EFFECTS: false,
     DIE_AT_RANGE: false,
-    ALPHA: 0.2,
+    ALPHA: 0.3,
     CLEAR_ON_MASTER_UPGRADE: true,
     CAN_GO_OUTSIDE_ROOM: true,
     BODY: {
@@ -16949,7 +16949,7 @@ exports.healAura = {
     CONTROLLERS: ["teleportToMaster"],
     DAMAGE_EFFECTS: false,
     DIE_AT_RANGE: false,
-    ALPHA: 0.25,
+    ALPHA: 0.3,
     CLEAR_ON_MASTER_UPGRADE: true,
     CAN_GO_OUTSIDE_ROOM: true,
     BODY: {
@@ -16969,7 +16969,7 @@ exports.healAura = {
 };
 exports.atmosphereSymbol = {
   PARENT: [exports.genericTank],
-  CONTROLLERS: [["spin", {speed: -0.008}]],
+  CONTROLLERS: [["spin", {speed: -0.012}]],
   INDEPENDENT: true,
   COLOR: 0,
   SHAPE: [[-0.598,-0.7796],[-0.3817,-0.9053],[0.9688,-0.1275],[0.97,0.125],[-0.3732,0.9116],[-0.593,0.785]]
@@ -17606,7 +17606,7 @@ exports.warlordDH = {
     LABEL: 'Destroyer Hybrid Minion',
     SHAPE: 6,
     BODY: {
-      SPEED: 2,
+      SPEED: 3,
     },
     AI: {
       orbitRange: 170,
