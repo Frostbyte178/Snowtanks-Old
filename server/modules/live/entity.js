@@ -554,7 +554,7 @@ let amNaN = me => [
 ].map((entry) => !!entry).some((entry) => entry);
 function antiNaN(me) {
     let nansInARow = 0;
-    let data = { x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0 };
+    let data = { x: 1, y: 1, vx: 0, vy: 0, ax: 0, ay: 0 };
 
     return function() {
         if (amNaN(me)) {
@@ -650,6 +650,7 @@ class Entity extends EventEmitter {
             };
         })();
         this.autoOverride = false;
+        this.healer = false;
         this.controllers = [];
         this.blend = {
             color: "#FFFFFF",
@@ -762,7 +763,7 @@ class Entity extends EventEmitter {
     become(player, dom = false) {
         this.addController(
             dom
-                ? new ioTypes.listenToPlayerStatic(this, { player })
+                ? new ioTypes.listenToPlayer(this, { player, static: true })
                 : new ioTypes.listenToPlayer(this, { player })
         );
         this.sendMessage = (content, color) => player.socket.talk("m", content);
@@ -772,12 +773,12 @@ class Entity extends EventEmitter {
         if (!player.body.isMothership)
             player.body.controllers = [
                 new ioTypes.nearestDifferentMaster(player.body),
-                new ioTypes.spin(o, { onlyWhenIdle: true }),
+                new ioTypes.spin(player.body, { onlyWhenIdle: true }),
             ];
         else if (player.body.isMothership)
             player.body.controllers = [
                 new ioTypes.nearestDifferentMaster(player.body),
-                new ioTypes.botMovement(player.body),
+                new ioTypes.wanderAroundMap(player.body, { immitatePlayerMovement: false, lookAtGoal: true }),
                 new ioTypes.mapTargetToGoal(player.body),
             ];
         player.body.name = player.body.label;
@@ -817,7 +818,7 @@ class Entity extends EventEmitter {
             }
             this.addController(toAdd);
         }
-        if (set.IGNORED_BY_AI) this.ignoredByAi = set.IGNORED_BY_AI;
+        if (set.IGNORED_BY_AI != null) this.ignoredByAi = set.IGNORED_BY_AI;
         if (set.MOTION_TYPE != null) this.motionType = set.MOTION_TYPE;
         if (set.FACING_TYPE != null) this.facingType = set.FACING_TYPE;
         if (set.DRAW_HEALTH != null) this.settings.drawHealth = set.DRAW_HEALTH;
@@ -844,6 +845,7 @@ class Entity extends EventEmitter {
         if (set.AUTOSPIN_MULTIPLIER != null) this.autospinBoost = set.AUTOSPIN_MULTIPLIER;
         if (set.BROADCAST_MESSAGE != null) this.settings.broadcastMessage = set.BROADCAST_MESSAGE === "" ? undefined : set.BROADCAST_MESSAGE;
         if (set.DEFEAT_MESSAGE) this.settings.defeatMessage = true;
+        if (set.HEALER) this.healer = true;
         if (set.DAMAGE_CLASS != null) this.settings.damageClass = set.DAMAGE_CLASS;
         if (set.BUFF_VS_FOOD != null) this.settings.buffVsFood = set.BUFF_VS_FOOD;
         if (set.CAN_BE_ON_LEADERBOARD != null) this.settings.leaderboardable = set.CAN_BE_ON_LEADERBOARD;
@@ -855,12 +857,29 @@ class Entity extends EventEmitter {
         if (set.INVISIBLE != null) this.invisible = set.INVISIBLE;
         if (set.DANGER != null) this.dangerValue = set.DANGER;
         if (set.SHOOT_ON_DEATH != null) this.shootOnDeath = set.SHOOT_ON_DEATH;
+        if (set.TEAM != null) {
+            this.team = set.TEAM;
+            const _entity = this;
+            loopThrough(sockets.players, function (player) {
+                if (player.body.id == _entity.id) player.team = -_entity.team;
+            });
+        }
         if (set.VARIES_IN_SIZE != null) {
             this.settings.variesInSize = set.VARIES_IN_SIZE;
             this.squiggle = this.settings.variesInSize ? ran.randomRange(0.8, 1.2) : 1;
         }
-        if (set.RESET_UPGRADES) this.upgrades = [];
-        if (set.ARENA_CLOSER != null) this.ac = set.ARENA_CLOSER;
+        if (set.RESET_UPGRADES) {
+            this.upgrades = [];
+            this.isArenaCloser = false;
+            this.ac = false;
+            this.alpha = 1;
+            this.skill.reset();
+            this.reset();
+        }
+        if (set.ARENA_CLOSER != null) {
+            this.isArenaCloser = set.ARENA_CLOSER;
+            this.ac = set.ARENA_CLOSER;
+        }
         for (let i = 0; i < c.MAX_UPGRADE_TIER; i++) {
             let tierProp = 'UPGRADES_TIER_' + i;
             if (set[tierProp] != null) {
@@ -880,14 +899,8 @@ class Entity extends EventEmitter {
             if (this.coreSize == null) this.coreSize = this.SIZE;
         }
         if (set.LEVEL != null) {
-            if (set.LEVEL === -1) {
-                this.skill.reset();
-            }
             this.skill.reset();
-            while (
-                this.skill.level < c.SKILL_CHEAT_CAP &&
-                this.skill.level < set.LEVEL
-            ) {
+            while (this.skill.level < set.LEVEL) {
                 this.skill.score += this.skill.levelScore;
                 this.skill.maintain();
             }
@@ -964,14 +977,14 @@ class Entity extends EventEmitter {
         if (this.settings.reloadToAcceleration) this.acceleration *= this.skill.acl;
         this.topSpeed = (c.runSpeed * this.SPEED * this.skill.mob) / speedReduce;
         if (this.settings.reloadToAcceleration) this.topSpeed /= Math.sqrt(this.skill.acl);
-        this.health.set(((this.settings.healthWithLevel ? 2 * this.skill.level : 0) + this.HEALTH) * this.skill.hlt);
+        this.health.set(((this.settings.healthWithLevel ? 2 * this.level : 0) + this.HEALTH) * this.skill.hlt);
         this.health.resist = 1 - 1 / Math.max(1, this.RESIST + this.skill.brst);
-        this.shield.set(((this.settings.healthWithLevel ? 0.6 * this.skill.level : 0) + this.SHIELD) * this.skill.shi, Math.max(0, ((this.settings.healthWithLevel ? 0.006 * this.skill.level : 0) + 1) * this.REGEN * this.skill.rgn));
+        this.shield.set(((this.settings.healthWithLevel ? 0.6 * this.level : 0) + this.SHIELD) * this.skill.shi, Math.max(0, ((this.settings.healthWithLevel ? 0.006 * this.level : 0) + 1) * this.REGEN * this.skill.rgn));
         this.damage = this.DAMAGE * this.skill.atk;
         this.penetration = this.PENETRATION + 1.5 * (this.skill.brst + 0.8 * (this.skill.atk - 1));
         if (!this.settings.dieAtRange || !this.range) this.range = this.RANGE;
-        this.fov = this.FOV * 250 * Math.sqrt(this.size) * (1 + 0.003 * this.skill.level);
-        this.density = (1 + 0.08 * this.skill.level) * this.DENSITY;
+        this.fov = this.FOV * 250 * Math.sqrt(this.size) * (1 + 0.003 * this.level);
+        this.density = (1 + 0.08 * this.level) * this.DENSITY;
         this.stealth = this.STEALTH;
         this.pushability = this.PUSHABILITY;
     }
@@ -1000,14 +1013,17 @@ class Entity extends EventEmitter {
         this.motionType = "bound";
         this.move();
     }
+    get level() {
+        return Math.min(c.SKILL_CAP, this.skill.level);
+    }
     get size() {
-        return this.bond == null ? (this.coreSize || this.SIZE) * (1 + this.skill.level / 45) : this.bond.size * this.bound.size;
+        return this.bond == null ? (this.coreSize || this.SIZE) * (1 + this.level / 45) : this.bond.size * this.bound.size;
     }
     get mass() {
-        return this.density * (this.size * this.size + 1);
+        return this.density * (this.size ** 2 + 1);
     }
     get realSize() {
-        return this.size * (Math.abs(this.shape) > lazyRealSizes.length ? 1 : lazyRealSizes[Math.floor(Math.abs(this.shape))]);
+        return this.size * lazyRealSizes[Math.floor(Math.abs(this.shape))];
     }
     get m_x() {
         return (this.velocity.x + this.accel.x) / roomSpeed;
@@ -1059,7 +1075,7 @@ class Entity extends EventEmitter {
     upgrade(number) {
         if (
             number < this.upgrades.length &&
-            this.skill.level >= this.upgrades[number].level
+            this.level >= this.upgrades[number].level
         ) {
             let upgrade = this.upgrades[number].class;
             this.upgrades = [];
@@ -1211,6 +1227,10 @@ class Entity extends EventEmitter {
         }
         this.accel.x += engine.x * this.control.power;
         this.accel.y += engine.y * this.control.power;
+    }
+    reset(_con = true) {
+        this.controllers = this.controllers.filter(con => (con instanceof ioTypes.listenToPlayer) * _con);
+        if (this.controllers.length > 1 && _con) this.controllers = this.controllers[0];
     }
     face() {
         let t = this.control.target,
@@ -1445,7 +1465,7 @@ class Entity extends EventEmitter {
         if (room.gameMode === "tdm" && this.type !== "food" && this.master.label !== "Arena Closer") {
             let loc = this;
             let inEnemyBase = false;
-            for (let i = 1; i < room.TEAMS + 1; i++) {
+            for (let i = 1; i < c.TEAMS + 1; i++) {
                 if (room["bas" + i].length) {
                     if (this.team !== -i && room.isIn("bas" + i, loc)) inEnemyBase = true;
                 }
